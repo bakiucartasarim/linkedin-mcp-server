@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LinkedIn OAuth Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .step {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #0077b5;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #005885;
+        }
+        input, textarea {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c1e1c1;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔗 LinkedIn OAuth Test Tool</h1>
+    
+    <div class="warning">
+        <strong>⚠️ Önemli:</strong> Bu sayfayı kullanmadan önce aşağıdaki CLIENT_ID ve CLIENT_SECRET değerlerini LinkedIn Developer Portal'dan alınan değerlerle değiştirin.
+    </div>
+    
+    <div id="config" class="step">
+        <h2>⚙️ Konfigürasyon</h2>
+        <label>Client ID:</label><br>
+        <input type="text" id="clientId" placeholder="LinkedIn Client ID'nizi girin" style="width:400px;"><br><br>
+        
+        <label>Client Secret:</label><br>
+        <input type="text" id="clientSecret" placeholder="LinkedIn Client Secret'ınızı girin" style="width:400px;"><br><br>
+        
+        <button onclick="saveConfig()">Ayarları Kaydet</button>
+    </div>
+    
+    <div id="step1" class="step" style="display:none;">
+        <h2>📋 Adım 1: LinkedIn'e Yönlendir</h2>
+        <p>LinkedIn OAuth sayfasına yönlendirileceksiniz. Giriş yaptıktan sonra bir callback URL'ine yönlendirileceksiniz.</p>
+        <button onclick="authorizeLinkedIn()">🚀 LinkedIn ile Giriş Yap</button>
+    </div>
+    
+    <div id="step2" class="step" style="display:none;">
+        <h2>🔑 Adım 2: Authorization Code</h2>
+        <p>LinkedIn'e yönlendirildikten sonra, callback URL'inde bulunan <code>code</code> parametresini aşağıya yapıştırın:</p>
+        <p><strong>Örnek URL:</strong> <code>http://localhost:3000/callback?code=AQT8L...</code></p>
+        
+        <label>Authorization Code:</label><br>
+        <input type="text" id="authCode" placeholder="Authorization code'u buraya yapıştırın" style="width:500px;"><br><br>
+        <button onclick="getAccessToken()">🎯 Access Token Al</button>
+    </div>
+    
+    <div id="result" class="step" style="display:none;">
+        <h2>✅ Sonuç</h2>
+        <div class="success">
+            <strong>Başarılı!</strong> Access token'ınız başarıyla alındı.
+        </div>
+        
+        <label>Access Token:</label><br>
+        <textarea id="accessToken" style="width:100%;height:100px;" readonly></textarea><br><br>
+        
+        <label>Token Bilgileri:</label><br>
+        <textarea id="tokenInfo" style="width:100%;height:80px;" readonly></textarea><br><br>
+        
+        <button onclick="testToken()">🧪 Token'ı Test Et</button>
+        <button onclick="copyToken()">📋 Token'ı Kopyala</button>
+    </div>
+    
+    <div id="testResult" class="step" style="display:none;">
+        <h2>🧪 Test Sonucu</h2>
+        <textarea id="testOutput" style="width:100%;height:150px;" readonly></textarea>
+    </div>
+
+    <script>
+        const REDIRECT_URI = 'http://localhost:3000/callback';
+        let CLIENT_ID = '';
+        let CLIENT_SECRET = '';
+        
+        function saveConfig() {
+            CLIENT_ID = document.getElementById('clientId').value.trim();
+            CLIENT_SECRET = document.getElementById('clientSecret').value.trim();
+            
+            if (!CLIENT_ID || !CLIENT_SECRET) {
+                alert('Lütfen Client ID ve Client Secret değerlerini girin!');
+                return;
+            }
+            
+            document.getElementById('config').style.display = 'none';
+            document.getElementById('step1').style.display = 'block';
+            
+            // Değerleri localStorage'a kaydet
+            localStorage.setItem('linkedin_client_id', CLIENT_ID);
+            localStorage.setItem('linkedin_client_secret', CLIENT_SECRET);
+        }
+        
+        function authorizeLinkedIn() {
+            if (!CLIENT_ID) {
+                alert('Önce Client ID ve Client Secret ayarlarını yapın!');
+                return;
+            }
+            
+            const scope = 'r_liteprofile w_member_social';
+            const state = Math.random().toString(36).substring(7);
+            
+            const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
+                `response_type=code&` +
+                `client_id=${CLIENT_ID}&` +
+                `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+                `state=${state}&` +
+                `scope=${encodeURIComponent(scope)}`;
+            
+            // State'i localStorage'a kaydet
+            localStorage.setItem('oauth_state', state);
+            
+            window.open(authUrl, '_blank', 'width=600,height=700');
+            
+            document.getElementById('step1').style.display = 'none';
+            document.getElementById('step2').style.display = 'block';
+        }
+        
+        async function getAccessToken() {
+            const authCode = document.getElementById('authCode').value.trim();
+            
+            if (!authCode) {
+                alert('Lütfen authorization code\'u girin!');
+                return;
+            }
+            
+            try {
+                const response = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        grant_type: 'authorization_code',
+                        code: authCode,
+                        client_id: CLIENT_ID,
+                        client_secret: CLIENT_SECRET,
+                        redirect_uri: REDIRECT_URI
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.access_token) {
+                    document.getElementById('accessToken').value = data.access_token;
+                    document.getElementById('tokenInfo').value = JSON.stringify(data, null, 2);
+                    
+                    document.getElementById('step2').style.display = 'none';
+                    document.getElementById('result').style.display = 'block';
+                    
+                    // Token'ı localStorage'a kaydet
+                    localStorage.setItem('linkedin_access_token', data.access_token);
+                    
+                    console.log('Access Token:', data.access_token);
+                    console.log('Expires in:', data.expires_in, 'seconds');
+                } else {
+                    alert('Hata: ' + JSON.stringify(data, null, 2));
+                }
+            } catch (error) {
+                alert('Hata: ' + error.message);
+                console.error('Error:', error);
+            }
+        }
+        
+        async function testToken() {
+            const accessToken = document.getElementById('accessToken').value;
+            
+            if (!accessToken) {
+                alert('Access token bulunamadı!');
+                return;
+            }
+            
+            try {
+                const response = await fetch('https://api.linkedin.com/v2/people/~', {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                const data = await response.json();
+                
+                document.getElementById('testOutput').value = JSON.stringify(data, null, 2);
+                document.getElementById('testResult').style.display = 'block';
+                
+                if (response.ok) {
+                    alert('✅ Token başarıyla test edildi! Profil bilgileri alındı.');
+                } else {
+                    alert('❌ Token testi başarısız: ' + (data.message || 'Bilinmeyen hata'));
+                }
+            } catch (error) {
+                document.getElementById('testOutput').value = 'Hata: ' + error.message;
+                document.getElementById('testResult').style.display = 'block';
+                alert('❌ Test sırasında hata: ' + error.message);
+            }
+        }
+        
+        function copyToken() {
+            const accessToken = document.getElementById('accessToken').value;
+            navigator.clipboard.writeText(accessToken).then(() => {
+                alert('✅ Access token kopyalandı!');
+            }).catch(err => {
+                alert('❌ Kopyalama hatası: ' + err);
+            });
+        }
+        
+        // Sayfa yüklendiğinde kaydedilmiş değerleri yükle
+        window.onload = function() {
+            const savedClientId = localStorage.getItem('linkedin_client_id');
+            const savedClientSecret = localStorage.getItem('linkedin_client_secret');
+            const savedToken = localStorage.getItem('linkedin_access_token');
+            
+            if (savedClientId) {
+                document.getElementById('clientId').value = savedClientId;
+                CLIENT_ID = savedClientId;
+            }
+            
+            if (savedClientSecret) {
+                document.getElementById('clientSecret').value = savedClientSecret;
+                CLIENT_SECRET = savedClientSecret;
+            }
+            
+            if (savedToken) {
+                document.getElementById('accessToken').value = savedToken;
+            }
+        };
+    </script>
+</body>
+</html>
