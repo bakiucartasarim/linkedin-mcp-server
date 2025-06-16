@@ -12,7 +12,7 @@ import axios from 'axios';
 
 const server = new Server(
   {
-    name: 'mcp-server',
+    name: 'linkedin-mcp-server',
     version: '1.0.0',
   },
   {
@@ -168,8 +168,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('MCP Server running on stdio');
+  
+  const serverName = process.env.NODE_ENV === 'production' ? 'LinkedIn MCP Server (Production)' : 'LinkedIn MCP Server (Development)';
+  console.error(`${serverName} running on stdio`);
+  console.error(`Process ID: ${process.pid}`);
+  console.error(`Node.js version: ${process.version}`);
+  
+  // Health check endpoint for Coolify/Docker
+  if (process.env.HEALTH_CHECK_ENABLED === 'true') {
+    setInterval(() => {
+      console.error(`Health check: ${new Date().toISOString()} - Server is running`);
+    }, 30000); // Every 30 seconds
+  }
 }
+
+// Graceful shutdown handling for Docker
+process.on('SIGTERM', () => {
+  console.error('Received SIGTERM, shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.error('Received SIGINT, shutting down gracefully');
+  process.exit(0);
+});
 
 main().catch((error) => {
   console.error('Server error:', error);

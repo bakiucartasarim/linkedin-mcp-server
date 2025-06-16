@@ -10,13 +10,65 @@ LinkedIn API ile entegre olan bir Model Context Protocol (MCP) server'ı. Linked
 
 ## Kurulum
 
+### Local Development
+
 ```bash
 npm install
 ```
 
+### Docker ile Çalıştırma
+
+```bash
+# Docker image build et
+docker build -t linkedin-mcp-server .
+
+# Container'ı çalıştır
+docker run -p 3000:3000 linkedin-mcp-server
+```
+
+### Docker Compose ile Çalıştırma
+
+```bash
+docker-compose up -d
+```
+
+## Coolify Deployment
+
+### Coolify'da Yeni Proje Oluşturma
+
+1. **Coolify Dashboard**'a gidin
+2. **New Resource** → **Application** seçin
+3. **Git Source** olarak bu repository'yi ekleyin:
+   ```
+   https://github.com/bakiucartasarim/linkedin-mcp-server.git
+   ```
+
+### Coolify Ayarları
+
+**Build Pack:** Docker  
+**Dockerfile:** `/Dockerfile` (otomatik algılanır)  
+**Port:** `3000`  
+**Health Check:** Enabled  
+
+### Environment Variables (Coolify'da)
+
+```env
+NODE_ENV=production
+PORT=3000
+HEALTH_CHECK_ENABLED=true
+LOG_LEVEL=info
+```
+
+### Coolify Deployment Adımları
+
+1. **Application** oluşturun
+2. **Environment Variables** ekleyin
+3. **Deploy** butonuna tıklayın
+4. **Logs** sekmesinden deployment durumunu takip edin
+
 ## Kullanım
 
-### Server'ı Başlatma
+### Local Development
 
 ```bash
 npm start
@@ -26,6 +78,10 @@ Geliştirme modu için:
 ```bash
 npm run dev
 ```
+
+### Production (Docker/Coolify)
+
+Server otomatik olarak başlar ve health check'ler çalışır.
 
 ### Claude Desktop'a Ekleme
 

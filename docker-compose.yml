@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  linkedin-mcp-server:
+    build: .
+    container_name: linkedin-mcp-server
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    volumes:
+      # Mount logs directory if needed
+      - ./logs:/app/logs
+    networks:
+      - linkedin-mcp-network
+    labels:
+      # Coolify labels
+      - "coolify.managed=true"
+      - "coolify.name=linkedin-mcp-server"
+      - "coolify.type=application"
+
+networks:
+  linkedin-mcp-network:
+    driver: bridge
+
+volumes:
+  logs:
+    driver: local
