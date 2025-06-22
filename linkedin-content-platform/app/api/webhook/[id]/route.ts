@@ -61,6 +61,22 @@ export async function POST(
 
     const now = new Date()
 
+    // Önce content session oluştur
+    const contentSession = await prisma.contentSession.create({
+      data: {
+        userId: n8nConfig.userId,
+        type: 'webhook',
+        status: status === 'READY_TO_PUBLISH' ? 'READY_TO_PUBLISH' : 'COMPLETED',
+        finalContent: JSON.stringify({
+          text: content,
+          image: webhookData.imageUrl || null
+        }),
+        n8nResponse: JSON.stringify(webhookData)
+      }
+    })
+
+    console.log('Content session oluşturuldu:', contentSession.id)
+
     // Yeni post oluştur
     const newPost = await prisma.post.create({
       data: {
@@ -69,6 +85,7 @@ export async function POST(
         tone: tone || 'professional',
         platform: platform || 'linkedin',
         userId: n8nConfig.userId,
+        sessionId: contentSession.id, // Content session ile ilişkilendir
         status: postStatus,
         linkedinPostId: linkedinPostId || null,
         publishedAt: (postStatus === 'PUBLISHED' || postStatus === 'COMPLETED') ? now : null,
@@ -87,6 +104,7 @@ export async function POST(
       success: true,
       message: 'İçerik başarıyla oluşturuldu',
       postId: newPost.id,
+      sessionId: contentSession.id,
       content: newPost.content,
       status: postStatus
     })

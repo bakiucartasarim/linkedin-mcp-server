@@ -91,17 +91,37 @@ export default function DashboardPage() {
 
   const checkForWebhookContent = async () => {
     try {
+      console.log('Webhook content kontrolü başlatılıyor...')
       const response = await fetch('/api/content-sessions')
       if (response.ok) {
         const data = await response.json()
-        const readySession = data.contentSessions?.find((session: any) => 
-          session.status === 'READY_TO_PUBLISH' && session.n8nResponse && session.finalContent
-        )
+        console.log('Content sessions verisi:', data)
+        
+        // Daha geniş bir kontrol yapalım - sadece n8nResponse olan session'ları da dahil edelim
+        const readySession = data.contentSessions?.find((session: any) => {
+          const hasN8nResponse = session.n8nResponse !== null
+          const hasFinalContent = session.finalContent !== null
+          const isReady = session.status === 'READY_TO_PUBLISH'
+          
+          console.log(`Session ${session.id}:`, {
+            status: session.status,
+            hasN8nResponse,
+            hasFinalContent,
+            isReady
+          })
+          
+          // N8nResponse varsa ve finalContent varsa göster
+          return hasN8nResponse && hasFinalContent
+        })
+        
+        console.log('Bulunan ready session:', readySession)
         
         if (readySession) {
           const finalContent = typeof readySession.finalContent === 'string' 
             ? JSON.parse(readySession.finalContent) 
             : readySession.finalContent
+            
+          console.log('Final content:', finalContent)
             
           setWebhookContent({
             sessionId: readySession.id,
@@ -112,10 +132,57 @@ export default function DashboardPage() {
           setContentType('auto')
           setShowContentModal(true)
           toast.success('N8N\'den yeni içerik hazır!')
+        } else {
+          console.log('Webhook content bulunamadı')
         }
+      } else {
+        console.error('API response error:', response.status)
       }
     } catch (error) {
       console.error('Webhook content check error:', error)
+    }
+  }
+
+  const testWebhook = async () => {
+    try {
+      console.log('Test webhook gönderiliyor...')
+      
+      // Test webhook verisini hazırla
+      const testData = {
+        content: "Bu N8N'den gelen test içeriğidir. LinkedIn'de paylaşılmaya hazır! 🚀",
+        topic: "Test Content",
+        tone: "professional",
+        platform: "linkedin",
+        publishNow: false,
+        status: "READY_TO_PUBLISH"
+      }
+      
+      const webhookId = 'linkedin-content' // URL'den çıkardığımız ID
+      const response = await fetch(`/api/webhook/${webhookId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(testData)
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Webhook response:', result)
+        toast.success('Test webhook başarıyla gönderildi!')
+        
+        // Webhook gönderildikten sonra content kontrol et
+        setTimeout(() => {
+          checkForWebhookContent()
+        }, 1000)
+      } else {
+        const error = await response.json()
+        console.error('Webhook error:', error)
+        toast.error('Webhook gönderimi başarısız: ' + (error.error || 'Bilinmeyen hata'))
+      }
+    } catch (error) {
+      console.error('Test webhook error:', error)
+      toast.error('Webhook testi başarısız')
     }
   }
 
@@ -338,6 +405,20 @@ export default function DashboardPage() {
                 <Clock className="w-5 h-5 mr-2" />
               )}
               İstatistikleri Yenile
+            </button>
+            <button
+              onClick={() => checkForWebhookContent()}
+              className="flex items-center justify-center p-4 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              <Upload className="w-5 h-5 mr-2" />
+              Webhook İçeriği Kontrol Et
+            </button>
+            <button
+              onClick={() => testWebhook()}
+              className="flex items-center justify-center p-4 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+            >
+              <Send className="w-5 h-5 mr-2" />
+              Test Webhook Gönder
             </button>
           </div>
         </div>

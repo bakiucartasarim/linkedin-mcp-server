@@ -60,6 +60,8 @@ const clearStorage = (keys: string[]) => {
 }
 
 export default function ContentCreationModal({ type, onClose, webhookData }: ContentCreationModalProps) {
+  console.log('ContentCreationModal rendered with:', { type, webhookData })
+  
   // Storage keys
   const storageKeys = {
     step: `content-modal-step-${type}`,
