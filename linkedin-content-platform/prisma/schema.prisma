@@ -1,0 +1,189 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  n8nConfig          N8nConfig?
+  linkedinOAuthConfig LinkedinOAuthConfig?
+  contentSessions    ContentSession[]
+  posts              Post[]
+  approvalLogs       ApprovalLog[]
+
+  @@map("users")
+}
+
+model N8nConfig {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  webhookUrl String
+  authToken  String   @default("") // Default boş string ekledik
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("n8n_configs")
+}
+
+enum LinkedinAccountType {
+  PERSON
+  COMPANY
+}
+
+model LinkedinOAuthConfig {
+  id                String             @id @default(cuid())
+  userId            String             @unique
+  clientId          String
+  clientSecret      String
+  redirectUri       String             @default("https://app.n8n.cloud/oauth/callback")
+  authorizationCode String?            // Authorization code
+  accessToken       String?
+  tokenExpiry       DateTime?
+  linkedinId        String?            // LinkedIn ID (new field)
+  accountType       LinkedinAccountType? // Account type (new field)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("linkedin_oauth_configs")
+}
+
+enum ContentSessionStatus {
+  IN_PROGRESS
+  READY_TO_PUBLISH
+  COMPLETED
+  PUBLISHED
+  SCHEDULED
+  FAILED
+  CANCEL
+}
+
+model ContentSession {
+  id                String               @id @default(cuid())
+  userId            String
+  type              String // 'auto', 'image-first', 'text-first', 'text-only'
+  status            ContentSessionStatus @default(IN_PROGRESS)
+  userInput         String?
+  suggestions       String? // JSON string
+  finalContent      String? // JSON string
+  n8nResponse       String? // JSON string
+  n8nPublishResponse String? // JSON string
+  error             String?
+  publishedAt       DateTime?
+  scheduledAt       DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts        Post[]
+  approvalLogs ApprovalLog[]
+
+  @@map("content_sessions")
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+  FAILED
+  COMPLETED
+  CANCEL
+}
+
+model Post {
+  id             String     @id @default(cuid())
+  userId         String
+  sessionId      String?    // Optional - webhook posts don't need sessions
+  content        String
+  topic          String?
+  tone           String?
+  platform       String?
+  imageUrl       String?
+  status         PostStatus @default(DRAFT)
+  linkedinPostId String?
+  metadata       Json?      // For webhook data and other custom data
+  publishedAt    DateTime?
+  scheduledAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  // Relations
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentSession ContentSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("posts")
+}
+
+model ApprovalLog {
+  id              String   @id @default(cuid())
+  sessionId       String
+  userId          String
+  suggestionType  String // 'image' | 'text'
+  approved        Boolean
+  rejectionReason String?
+  response        String? // JSON string from n8n
+  createdAt       DateTime @default(now())
+
+  // Relations
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentSession ContentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("approval_logs")
+}
+
+// NextAuth.js models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
