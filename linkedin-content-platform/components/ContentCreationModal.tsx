@@ -18,6 +18,11 @@ import {
 interface ContentCreationModalProps {
   type: 'auto' | 'image-first' | 'text-first' | 'text-only'
   onClose: () => void
+  webhookData?: {
+    sessionId: string
+    finalContent: any
+    status: string
+  } | null
 }
 
 // State persistence için helper fonksiyonlar
@@ -54,7 +59,7 @@ const clearStorage = (keys: string[]) => {
   }
 }
 
-export default function ContentCreationModal({ type, onClose }: ContentCreationModalProps) {
+export default function ContentCreationModal({ type, onClose, webhookData }: ContentCreationModalProps) {
   // Storage keys
   const storageKeys = {
     step: `content-modal-step-${type}`,
@@ -68,22 +73,30 @@ export default function ContentCreationModal({ type, onClose }: ContentCreationM
     scheduledDate: `content-modal-scheduled-${type}`
   }
 
-  // State'leri localStorage'dan başlat
-  const [step, setStep] = useState<'input' | 'suggestion' | 'finalize'>(() => 
-    loadFromStorage(storageKeys.step, 'input'))
+  // State'leri localStorage'dan veya webhook verilerinden başlat
+  const [step, setStep] = useState<'input' | 'suggestion' | 'finalize'>(() => {
+    if (webhookData) return 'finalize'
+    return loadFromStorage(storageKeys.step, 'input')
+  })
   const [userInput, setUserInput] = useState(() => 
     loadFromStorage(storageKeys.userInput, ''))
   const [uploadedImage, setUploadedImage] = useState<string | null>(() => 
     loadFromStorage(storageKeys.uploadedImage, null))
   const [suggestions, setSuggestions] = useState<any>(() => 
     loadFromStorage(storageKeys.suggestions, null))
-  const [sessionId, setSessionId] = useState<string | null>(() => 
-    loadFromStorage(storageKeys.sessionId, null))
+  const [sessionId, setSessionId] = useState<string | null>(() => {
+    if (webhookData) return webhookData.sessionId
+    return loadFromStorage(storageKeys.sessionId, null)
+  })
   const [isLoading, setIsLoading] = useState(false)
   const [suggestionType, setSuggestionType] = useState<'image' | 'text'>(() => 
     loadFromStorage(storageKeys.suggestionType, 'image'))
-  const [finalContent, setFinalContent] = useState<{text: string, image?: string}>(() => 
-    loadFromStorage(storageKeys.finalContent, { text: '' }))
+  const [finalContent, setFinalContent] = useState<{text: string, image?: string}>(() => {
+    if (webhookData && webhookData.finalContent) {
+      return webhookData.finalContent
+    }
+    return loadFromStorage(storageKeys.finalContent, { text: '' })
+  })
   const [publishType, setPublishType] = useState<'now' | 'schedule'>(() => 
     loadFromStorage(storageKeys.publishType, 'now'))
   const [scheduledDate, setScheduledDate] = useState(() => 
@@ -615,9 +628,16 @@ export default function ContentCreationModal({ type, onClose }: ContentCreationM
 
           {step === 'finalize' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Son Kontrol ve Yayınlama
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Son Kontrol ve Yayınlama
+                </h3>
+                {webhookData && (
+                  <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                    N8N'den gelen içerik
+                  </div>
+                )}
+              </div>
 
               {/* Final Content Preview */}
               <div className="border border-gray-200 rounded-lg p-4">

@@ -32,6 +32,12 @@ interface Stats {
   total: number
 }
 
+interface WebhookContent {
+  sessionId: string
+  finalContent: any
+  status: string
+}
+
 export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -40,6 +46,7 @@ export default function DashboardPage() {
   const [contentType, setContentType] = useState<'auto' | 'image-first' | 'text-first' | 'text-only'>('auto')
   const [stats, setStats] = useState<Stats>({ published: 0, scheduled: 0, processing: 0, failed: 0, total: 0 })
   const [isLoading, setIsLoading] = useState(true)
+  const [webhookContent, setWebhookContent] = useState<WebhookContent | null>(null)
 
   useEffect(() => {
     console.log('Dashboard session status:', status)
@@ -72,10 +79,43 @@ export default function DashboardPage() {
         const data = await statsResponse.json()
         setStats(data.stats)
       }
+
+      // Webhook'tan gelen READY_TO_PUBLISH durumundaki content session'ları kontrol et
+      await checkForWebhookContent()
     } catch (error) {
       console.error('Data loading error:', error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const checkForWebhookContent = async () => {
+    try {
+      const response = await fetch('/api/content-sessions')
+      if (response.ok) {
+        const data = await response.json()
+        const readySession = data.contentSessions?.find((session: any) => 
+          session.status === 'READY_TO_PUBLISH' && session.n8nResponse && session.finalContent
+        )
+        
+        if (readySession) {
+          const finalContent = typeof readySession.finalContent === 'string' 
+            ? JSON.parse(readySession.finalContent) 
+            : readySession.finalContent
+            
+          setWebhookContent({
+            sessionId: readySession.id,
+            finalContent: finalContent,
+            status: readySession.status
+          })
+          // Otomatik olarak modal'ı açmak için
+          setContentType('auto')
+          setShowContentModal(true)
+          toast.success('N8N\'den yeni içerik hazır!')
+        }
+      }
+    } catch (error) {
+      console.error('Webhook content check error:', error)
     }
   }
 
@@ -317,7 +357,11 @@ export default function DashboardPage() {
       {showContentModal && (
         <ContentCreationModal
           type={contentType}
-          onClose={() => setShowContentModal(false)}
+          onClose={() => {
+            setShowContentModal(false)
+            setWebhookContent(null)
+          }}
+          webhookData={webhookContent}
         />
       )}
     </DashboardLayout>
